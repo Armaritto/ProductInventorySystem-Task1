@@ -7,11 +7,11 @@ namespace ProductInventorySystem.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class productController : ControllerBase
+    public class ProductController : ControllerBase
     {
         private readonly ProductContext _context;
 
-        public productController(ProductContext context)
+        public ProductController(ProductContext context)
         {
             _context = context;
         }
