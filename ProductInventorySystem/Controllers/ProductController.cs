@@ -2,6 +2,8 @@
 using ProductInventorySystem.Data;
 using ProductInventorySystem.Models;
 using Microsoft.EntityFrameworkCore;
+using ProductInventorySystem.Dtos;
+using AutoMapper;
 
 namespace ProductInventorySystem.Controllers
 {
@@ -10,10 +12,12 @@ namespace ProductInventorySystem.Controllers
     public class ProductController : ControllerBase
     {
         private readonly ProductContext _context;
+        private readonly IMapper _mapper;
 
-        public ProductController(ProductContext context)
+        public ProductController(ProductContext context, IMapper mapper)
         {
             _context = context;
+            _mapper = mapper;
         }
 
         [HttpGet]
@@ -24,42 +28,52 @@ namespace ProductInventorySystem.Controllers
                 var product = await _context.Products.FindAsync(id.Value);
                 if (product == null)
                     return NotFound(new { message = "Product not found!" });
-
-                return Ok(product);
+                var dto = _mapper.Map<ProductDto>(product);
+                return Ok(dto);
             }
 
             var allProducts = await _context.Products.ToListAsync();
-            return Ok(allProducts);
+            var dtoList = _mapper.Map<List<ProductDto>>(allProducts);
+            return Ok(dtoList);
         }
 
         [HttpPost]
-        public async Task<ActionResult<Product>> CreateProduct(Product product)
+        public async Task<ActionResult<Product>> CreateProduct([FromBody] ProductDto productDto)
         {
+            if (productDto == null)
+                return BadRequest(new { message = "ProductDto is required." });
+
+            Product product = _mapper.Map<Product>(productDto);
+
             _context.Products.Add(product);
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Product created successfully!" }); ;
+            return Ok(new { message = "Product created successfully!" });
         }
 
         [HttpPut]
-        public async Task<IActionResult> UpdateProduct([FromQuery] int id, Product product)
+        public async Task<IActionResult> UpdateProduct([FromQuery] int id, [FromBody] ProductDto productDto)
         {
-            var existingProduct = await _context.Products.FindAsync(id);
+            Product product = _mapper.Map<Product>(productDto);
 
-            if (existingProduct == null)
+            if (product == null)
+                return BadRequest(new { message = "ProductDto is required." });
+
+            var rowsAffected = await _context.Products
+                .Where(p => p.Id == id)
+                .ExecuteUpdateAsync(p => p
+                    .SetProperty(p => p.Name, product.Name)
+                    .SetProperty(p => p.Price, product.Price)
+                    .SetProperty(p => p.Quantity, product.Quantity));
+
+            if (rowsAffected == 0)
                 return NotFound(new { message = "Product not found!" });
-
-            existingProduct.Name = product.Name;
-            existingProduct.Price = product.Price;
-            existingProduct.Quantity = product.Quantity;
-
-            await _context.SaveChangesAsync();
 
             return Ok(new { message = "Product updated successfully!" });
         }
 
         [HttpDelete]
-        public async Task<IActionResult> DeleteProduct([FromQuery]  int id)
+        public async Task<IActionResult> DeleteProduct([FromQuery] int id)
         {
             var product = await _context.Products.FindAsync(id);
 
@@ -80,7 +94,9 @@ namespace ProductInventorySystem.Controllers
             if (inStockProducts.Count == 0)
                 return NotFound(new { message = "No products in stock!" });
 
-            return Ok(inStockProducts);
+            var inStockProductDtos = _mapper.Map<List<ProductDto>>(inStockProducts);
+
+            return Ok(inStockProductDtos);
         }
     }
 }
