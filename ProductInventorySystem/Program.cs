@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using ProductInventorySystem.Data;
 using ProductInventorySystem.Profiles;
+using ProductInventorySystem.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,6 +11,7 @@ builder.Services.AddDbContext<ProductContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddAutoMapper(typeof(MappingProfile));
+builder.Services.AddScoped<IProductRepository, ProductRepository>();
 
 builder.Services.AddRouting(options =>
 {

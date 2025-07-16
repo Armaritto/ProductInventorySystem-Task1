@@ -1,5 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using ProductInventorySystem.Data;
+using ProductInventorySystem.Repositories;
 using ProductInventorySystem.Models;
 using Microsoft.EntityFrameworkCore;
 using ProductInventorySystem.Dtos;
@@ -11,13 +11,13 @@ namespace ProductInventorySystem.Controllers
     [Route("api/[controller]")]
     public class ProductController : ControllerBase
     {
-        private readonly ProductContext _context;
         private readonly IMapper _mapper;
+        private readonly IProductRepository _repository;
 
-        public ProductController(ProductContext context, IMapper mapper)
+        public ProductController(IProductRepository repository, IMapper mapper)
         {
-            _context = context;
             _mapper = mapper;
+            _repository = repository;
         }
 
         [HttpGet]
@@ -25,14 +25,14 @@ namespace ProductInventorySystem.Controllers
         {
             if (id.HasValue)
             {
-                var product = await _context.Products.FindAsync(id.Value);
+                var product = await _repository.GetByIdAsync(id.Value);
                 if (product == null)
                     return NotFound(new { message = "Product not found!" });
                 var dto = _mapper.Map<ProductDto>(product);
                 return Ok(dto);
             }
 
-            var allProducts = await _context.Products.ToListAsync();
+            var allProducts = await _repository.GetAllAsync();
             var dtoList = _mapper.Map<List<ProductDto>>(allProducts);
             return Ok(dtoList);
         }
@@ -45,8 +45,7 @@ namespace ProductInventorySystem.Controllers
 
             Product product = _mapper.Map<Product>(productDto);
 
-            _context.Products.Add(product);
-            await _context.SaveChangesAsync();
+            await _repository.AddAsync(product);
 
             return Ok(new { message = "Product created successfully!" });
         }
@@ -59,12 +58,7 @@ namespace ProductInventorySystem.Controllers
             if (product == null)
                 return BadRequest(new { message = "ProductDto is required." });
 
-            var rowsAffected = await _context.Products
-                .Where(p => p.Id == id)
-                .ExecuteUpdateAsync(p => p
-                    .SetProperty(p => p.Name, product.Name)
-                    .SetProperty(p => p.Price, product.Price)
-                    .SetProperty(p => p.Quantity, product.Quantity));
+            var rowsAffected = await _repository.UpdateAsync(product);
 
             if (rowsAffected == 0)
                 return NotFound(new { message = "Product not found!" });
@@ -75,13 +69,10 @@ namespace ProductInventorySystem.Controllers
         [HttpDelete]
         public async Task<IActionResult> DeleteProduct([FromQuery] int id)
         {
-            var product = await _context.Products.FindAsync(id);
+           var rowsAffected = await _repository.DeleteAsync(id);
 
-            if (product == null)
+            if (rowsAffected == 0)
                 return NotFound(new { message = "Product not found!" });
-
-            _context.Products.Remove(product);
-            await _context.SaveChangesAsync();
 
             return Ok(new { message = "Product deleted successfully!" }); ;
         }
@@ -89,7 +80,7 @@ namespace ProductInventorySystem.Controllers
         [HttpGet("in-stock")]
         public async Task<IActionResult> GetInStockProducts()
         {
-            var inStockProducts = await _context.Products.Where(p => p.Quantity > 0).ToListAsync();
+            var inStockProducts = await _repository.GetAllInStock();
 
             if (inStockProducts.Count == 0)
                 return NotFound(new { message = "No products in stock!" });
